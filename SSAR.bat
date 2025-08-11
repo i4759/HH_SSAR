@@ -36,7 +36,6 @@ pause
 exit /b 1
 
 :python_found
-echo Python found: %PYTHON_CMD%
 %PYTHON_CMD% --version
 
 REM Создание виртуального окружения если его нет
@@ -53,8 +52,12 @@ REM Обновление pip
 
 REM Установка зависимостей если есть requirements.txt
 if exist "requirements.txt" (
-    echo Installing dependencies...
     %PYTHON_CMD% -m pip install -r requirements.txt
+
+    echo Fixing scipy and gensim compatibility...
+    %PYTHON_CMD% -m pip uninstall scipy gensim -y
+    %PYTHON_CMD% -m pip install scipy==1.11.4
+    %PYTHON_CMD% -m pip install gensim==4.3.2
 )
 
 REM Запуск основного скрипта
