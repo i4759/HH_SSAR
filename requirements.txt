@@ -24,3 +24,8 @@ tomli==2.0.1
 tzdata==2025.2
 urllib3==2.5.0
 zipp==3.23.0
+beautifulsoup4==4.12.3
+gensim==4.3.2
+nltk==3.8.1
+tqdm==4.66.4
+wget==3.2
