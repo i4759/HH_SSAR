@@ -5,7 +5,7 @@ REM Переход в директорию скрипта
 cd /d "%~dp0"
 
 REM Попытка найти Python разными способами
-echo Поиск Python...
+echo Searching Python...
 
 REM Проверка python
 python --version >nul 2>&1
