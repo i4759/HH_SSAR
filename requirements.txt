@@ -8,9 +8,9 @@ fake-useragent==2.2.0
 idna==3.10
 importlib_resources==6.5.2
 iniconfig==2.0.0
-numpy==2.0.2
+numpy==1.24.3
 packaging==24.0
-pandas==2.3.1
+pandas==2.0.3
 pick==2.3.2
 pluggy==1.4.0
 pymorphy2==0.9.1
@@ -29,4 +29,4 @@ gensim==4.3.2
 nltk==3.8.1
 tqdm==4.66.4
 wget==3.2
-scipy>=1.7.0
+scipy==1.11.4
