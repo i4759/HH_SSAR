@@ -16,19 +16,28 @@ from tqdm import tqdm
 SLEEP_TIME = 3  # Время ожидания между запросами к API hh.ru
 
 class ResumeData:
-    def __init__(self, soup_resume_data, resume_url=''):
-        self.soup = soup_resume_data
-        
-        self.resume_id = self._extract_resume_id(resume_url)
-        self.title = self._extract_title()
-        self.area = self._extract_area()
-        self.salary, self.currency = self._extract_salary()
-        self.experience_ID = self._extract_experience_id()
-        self.education = self._extract_education()
-        self.skills = self._extract_skills()
-        self.description = self._extract_description()
-        self.description_about_me = self._extract_description_about_me()
-        self.url = resume_url
+    def __init__(self, soup_resume_data=None, resume_url=''):
+        if soup_resume_data is not None and resume_url:
+            self.soup = soup_resume_data
+            self.resume_id = self._extract_resume_id(resume_url)
+            self.title = self._extract_title()
+            self.area = self._extract_area()
+            self.salary, self.currency = self._extract_salary()
+            self.experience_ID = self._extract_experience_id()
+            self.education = self._extract_education()
+            self.skills = self._extract_skills()
+            self.description = self._extract_description()
+            self.description_about_me = self._extract_description_about_me()
+            self.url = resume_url
+
+    def get_class_name(self):
+        """Возвращает имя класса"""
+        return self.__class__.__name__
+
+    def inject_data(self, data):
+        """Внедряет данные в объект"""
+        for key, value in data.items():
+            setattr(self, key, value)
 
     def _extract_resume_id(self, url):
         """Извлекает ID резюме из URL"""
@@ -56,8 +65,6 @@ class ResumeData:
         except:
             pass
         return title
-
-
 
     def _extract_area(self):
         """Извлекает местоположение"""
@@ -307,21 +314,31 @@ class ResumeData:
 
 
 class VacancyData:
-    def __init__(self, json_vacancy_data):
-        self.vacancy_id = json_vacancy_data.get('id', np.nan)
-        self.name = json_vacancy_data.get('name', np.nan)
-        self.area = json_vacancy_data.get('area', np.nan).get('name', np.nan)
-        self.published_at = datetime.strptime(json_vacancy_data.get('published_at', '1900-01-01T00:00:00+0300'), "%Y-%m-%dT%H:%M:%S%z")
-        self.salary_from = json_vacancy_data.get('salary', np.nan).get('from', np.nan)
-        self.salary_to = json_vacancy_data.get('salary', np.nan).get('to', np.nan)
-        self.currency = json_vacancy_data.get('salary', np.nan).get('currency', np.nan)
-        self.gross = json_vacancy_data.get('salary', np.nan).get('gross', np.nan)
-        self.experience_id = json_vacancy_data.get('experience', np.nan).get('id', np.nan)
-        self.key_skills = self._extract_skills(json_vacancy_data.get('key_skills', np.nan))
-        self.employer_name = json_vacancy_data.get('employer', np.nan).get('name', np.nan)
-        self.employer_accredited_it = json_vacancy_data.get('employer', np.nan).get('accredited_it_employer', np.nan)
-        self.description = BeautifulSoup(json_vacancy_data.get('description', '<span></span>'), features="html.parser").get_text()
-        self.url = json_vacancy_data.get('alternate_url', np.nan)
+    def __init__(self, json_vacancy_data=None):
+        if json_vacancy_data is not None:
+            self.vacancy_id = json_vacancy_data.get('id', np.nan)
+            self.name = json_vacancy_data.get('name', np.nan)
+            self.area = json_vacancy_data.get('area', np.nan).get('name', np.nan)
+            self.published_at = datetime.strptime(json_vacancy_data.get('published_at', '1900-01-01T00:00:00+0300'), "%Y-%m-%dT%H:%M:%S%z")
+            self.salary_from = json_vacancy_data.get('salary', np.nan).get('from', np.nan)
+            self.salary_to = json_vacancy_data.get('salary', np.nan).get('to', np.nan)
+            self.currency = json_vacancy_data.get('salary', np.nan).get('currency', np.nan)
+            self.gross = json_vacancy_data.get('salary', np.nan).get('gross', np.nan)
+            self.experience_id = json_vacancy_data.get('experience', np.nan).get('id', np.nan)
+            self.key_skills = self._extract_skills(json_vacancy_data.get('key_skills', np.nan))
+            self.employer_name = json_vacancy_data.get('employer', np.nan).get('name', np.nan)
+            self.employer_accredited_it = json_vacancy_data.get('employer', np.nan).get('accredited_it_employer', np.nan)
+            self.description = BeautifulSoup(json_vacancy_data.get('description', '<span></span>'), features="html.parser").get_text()
+            self.url = json_vacancy_data.get('alternate_url', np.nan)
+
+    def get_class_name(self):
+        """Возвращает имя класса"""
+        return self.__class__.__name__
+
+    def inject_data(self, data):
+        """Внедряет данные в объект"""
+        for key, value in data.items():
+            setattr(self, key, value)
 
     def _extract_skills(self, key_skills):
         """Извлекает ключевые навыки из данных вакансии."""
@@ -333,7 +350,6 @@ class VacancyData:
         except:
             pass
         return skills
-
 
     def get_vacancy_data(self):
         """Возвращает данные вакансии в виде словаря."""
@@ -355,7 +371,6 @@ class VacancyData:
 
 
 
-
 def get_hh_dictionaries(key):
     url = 'https://api.hh.ru/dictionaries'
     data = get_hh_response(url)[1]
@@ -363,7 +378,6 @@ def get_hh_dictionaries(key):
     if data:
         dictionary_data = json.loads(data)[key]
     return dictionary_data
-
 
 def get_resume_links(region_id=1, search_text=''):    
     resume_url_list = []
@@ -399,7 +413,6 @@ def get_resume_links(region_id=1, search_text=''):
         
     return resume_url_list
     
-
 def get_vacancy_links_api(region_id=1, search_text=''):
     """Получает ссылки на вакансии по API hh.ru для заданного региона.
     Параметры: region_id - ID региона, для которого нужно получить вакансии.
@@ -443,12 +456,10 @@ def get_vacancy_links_api(region_id=1, search_text=''):
 
     return vacancy_url_list
 
-
 def extract_vacancy_links_api(vacancies_list, url_list):
     for vacancy in vacancies_list:
         url_list.append(vacancy['url'])
     return url_list
-
 
 def get_hh_response(url):
     """Получает данные по указанному URL.
@@ -476,7 +487,6 @@ def get_hh_response(url):
     else:
         status = 'error - Не удалось получить данные'
     return status, response_data
-
 
 def save_to_csv(data, data_name, search_text, region_name):
     """Сохраняет данные в CSV файл"""
@@ -513,6 +523,18 @@ def load_from_csv(filter=''):
         except Exception as err:
             raise ValueError(f'Ошибка при загрузке данных из файла: {err}')
 
+def select_from_dataframe(object, dataframe):
+    """Выбор из DataFrame."""
+    item = None
+    if dataframe is None or dataframe.empty:
+        print(f"Нет доступных {object.get_class_name()} для выбора.")
+        return item
+
+    options = [f"{idx+1}: {row[1]} ({row[0]})" for idx, row in dataframe.iterrows()]
+    idx = pick(options, f"Выберите {object.get_class_name()}:", indicator='>')[1]
+    item = object
+    item.inject_data(dataframe.iloc[idx])
+    return item
 
 def get_available_regions():
     """Получает список доступных городов для поиска."""
@@ -533,11 +555,11 @@ def get_available_regions():
                 available_regions.append((area['id'], area['name']))
     return available_regions
 
-
 def download_vacancies_from_hh():
     action = ''
 
     data_vacancy = None
+    vacancies_objects = []
 
     print('Получаем список доступных регионов...')
     region_selection = get_available_regions()
@@ -566,6 +588,7 @@ def download_vacancies_from_hh():
                 vacancy_data = json.loads(data)
                 vacancy = VacancyData(vacancy_data)
                 vacancy_data_table.append(vacancy.get_vacancy_data())
+                vacancies_objects.append(vacancy)
                 sleep(SLEEP_TIME)
             else:
                 print(f'\nНе удалось извлечь данные из: {url}\n{status}')
@@ -578,8 +601,7 @@ def download_vacancies_from_hh():
         user_choise = input('Сохранить данные в файл? (y/n): ')
         if user_choise.lower() == 'y':
             save_to_csv(data_vacancy, 'vacancies', user_text, region_id)
-    return data_vacancy
-
+    return data_vacancy, vacancies_objects
 
 def download_resumes_from_hh(specific_links_resumes = []):
     action = ''
@@ -588,6 +610,7 @@ def download_resumes_from_hh(specific_links_resumes = []):
 
     data_resumes = None
     resumes_data_table = []
+    resumes_objects = []
 
     if not specific_links_resumes:
         print('Получаем список доступных регионов...')
@@ -617,6 +640,7 @@ def download_resumes_from_hh(specific_links_resumes = []):
                 resume = ResumeData(resume_data, url)
                 if resume.is_valid():
                     resumes_data_table.append(resume.get_resume_data())
+                    resumes_objects.append(resume)
             else:
                 print(f'\nНе удалось извлечь данные из: {url}\n{status}')
 
@@ -628,7 +652,7 @@ def download_resumes_from_hh(specific_links_resumes = []):
         user_choise = input('Сохранить данные в файл? (y/n): ')
         if user_choise.lower() == 'y':
             save_to_csv(data_resumes, 'resumes', user_text, region_id)
-    return data_resumes
+    return data_resumes, resumes_objects
 
 def preview_dataframe(df):
     """Предпросмотр DataFrame"""
@@ -665,44 +689,37 @@ def hh_menu():
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
 
         if action == 'Скачать вакансии с HH.ru':
-            data_vacancy = download_vacancies_from_hh()
+            data_vacancy = download_vacancies_from_hh()[0]
             if data_vacancy is not None:
                 print("Данные вакансий успешно загружены!")
                 preview_dataframe(data_vacancy)
             input("Нажмите любую клавишу для продолжения...")
-            action = ''
-            continue
         elif action == 'Загрузить вакансии из файла':
             data_vacancy = load_from_csv('vacancies')
             if data_vacancy is not None:
                 print("Данные вакансий успешно загружены!")
                 preview_dataframe(data_vacancy)
             input("Нажмите любую клавишу для продолжения...")
-            action = ''
-            continue
         elif action == 'Скачать резюме с HH.ru':
-            data_resumes = download_resumes_from_hh()
-            action = ''
-            continue
+            data_resumes = download_resumes_from_hh()[0]
+
         elif action == 'Скачать резюме по ссылке':
-            resume_data = download_resumes_from_hh(specific_links_resumes)
+            resume_data = download_resumes_from_hh(specific_links_resumes)[0]
             if resume_data is not None:
                 print("Резюме успешно обработано!")
                 preview_dataframe(data_resumes)
             input("Нажмите любую клавишу для продолжения...")
-            action = ''
-            continue
         elif action == 'Загрузить резюме из файла':
             data_resumes = load_from_csv('resumes')
             if data_resumes is not None:
                 print("Данные резюме успешно загружены!")
                 preview_dataframe(data_resumes)
             input("Нажмите любую клавишу для продолжения...")
-            action = ''
-            continue
         else:
             print("Выход из модуля...")
             break
+        action = ''
+        continue
 
 
 if __name__ == "__main__":

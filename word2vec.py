@@ -330,27 +330,20 @@ def word2vec_menu():
 
         if action == 'Обучить модель':
             model = train_model()
-            action = ''
             continue
         elif action == 'Показать данные':
             pass
             input("Нажмите любую клавишу для продолжения...")
-            action = ''
         elif action == 'Загрузить модель':
             try:
                 print("Загрузка модели...")
                 model = load_model()
-                action = ''
-                continue
             except FileNotFoundError as err:
                 print(err)
-                action = ''
-                continue
         elif action == 'Тестировать модель':
             if model is not None:
                 user_input = input("Введите слово, чтобы найти похожие слова (или введите '/exit' для выхода): ").lower()
                 if user_input == '/exit':
-                    action = ''
                     continue
                 else:
                     try:
@@ -365,11 +358,11 @@ def word2vec_menu():
                         continue
             else:
                 print("No model loaded. Please load a model first.")
-                action = ''
-                continue
         else:
             print("Выход из модуля...")
             break
+        action = ''
+        continue
 
 
 if __name__ == "__main__":
