@@ -20,7 +20,7 @@ class ResumeData:
         if soup_resume_data is not None and resume_url:
             self.soup = soup_resume_data
             self.resume_id = self._extract_resume_id(resume_url)
-            self.title = self._extract_title()
+            self.name = self._extract_name()
             self.area = self._extract_area()
             self.salary, self.currency = self._extract_salary()
             self.experience_ID = self._extract_experience_id()
@@ -29,10 +29,6 @@ class ResumeData:
             self.description = self._extract_description()
             self.description_about_me = self._extract_description_about_me()
             self.url = resume_url
-
-    def get_class_name(self):
-        """Возвращает имя класса"""
-        return self.__class__.__name__
 
     def inject_data(self, data):
         """Внедряет данные в объект"""
@@ -50,21 +46,21 @@ class ResumeData:
             pass
         return resume_id
 
-    def _extract_title(self):
-        """Извлекает заголовок резюме"""
-        title = None
+    def _extract_name(self):
+        """Извлекает наименование резюме"""
+        name = None
         try:
-            title_item = self.soup.find('span', {'data-qa': 'resume-block-title-position'})
-            if title_item:
-                title = title_item.get_text(separator=' ', strip=True)
+            name_item = self.soup.find('span', {'data-qa': 'resume-block-title-position'})
+            if name_item:
+                name = name_item.get_text(separator=' ', strip=True)
 
             # Альтернативный селектор
-            title_item = self.soup.find('h1', class_=re.compile(r'resume-block-container'))
-            if title_item:
-                title = title_item.get_text(separator=' ', strip=True)
+            name_item = self.soup.find('h1', class_=re.compile(r'resume-block-container'))
+            if name_item:
+                name = name_item.get_text(separator=' ', strip=True)
         except:
             pass
-        return title
+        return name
 
     def _extract_area(self):
         """Извлекает местоположение"""
@@ -291,16 +287,28 @@ class ResumeData:
     def is_valid(self):
         """Проверяет валидность данных резюме."""
         return all([
-            self.title is not None,
+            self.name is not None,
             self.skills is not None,
             self.description is not None,
         ])
+
+    def get_header_text(self):
+        """Возвращает заголовок резюме."""
+        text = f"{self.resume_id} ({self.name})"
+        return text
+
+    def get_field(self, field_name):
+        """Возвращает значение указанного поля вакансии."""
+        try:
+            return getattr(self, field_name, None)
+        except AttributeError:
+            return None
 
     def get_resume_data(self):
         """Возвращает данные резюме в виде словаря."""
         return {
             'resume_id': self.resume_id,
-            'title': self.title,
+            'name': self.name,
             'area': self.area,
             'salary': self.salary,
             'currency': self.currency,
@@ -319,7 +327,7 @@ class VacancyData:
             self.vacancy_id = json_vacancy_data.get('id', np.nan)
             self.name = json_vacancy_data.get('name', np.nan)
             self.area = json_vacancy_data.get('area', np.nan).get('name', np.nan)
-            self.published_at = datetime.strptime(json_vacancy_data.get('published_at', '1900-01-01T00:00:00+0300'), "%Y-%m-%dT%H:%M:%S%z")
+            self.published_at = (datetime.strptime(json_vacancy_data.get('published_at', '1900-01-01T00:00:00+0300'), "%Y-%m-%dT%H:%M:%S%z")).strftime("%d.%m.%Y")
             self.salary_from = json_vacancy_data.get('salary', np.nan).get('from', np.nan)
             self.salary_to = json_vacancy_data.get('salary', np.nan).get('to', np.nan)
             self.currency = json_vacancy_data.get('salary', np.nan).get('currency', np.nan)
@@ -331,32 +339,37 @@ class VacancyData:
             self.description = BeautifulSoup(json_vacancy_data.get('description', '<span></span>'), features="html.parser").get_text()
             self.url = json_vacancy_data.get('alternate_url', np.nan)
 
-    def get_class_name(self):
-        """Возвращает имя класса"""
-        return self.__class__.__name__
-
     def inject_data(self, data):
         """Внедряет данные в объект"""
         for key, value in data.items():
             setattr(self, key, value)
 
-    def _extract_skills(self, key_skills):
-        """Извлекает ключевые навыки из данных вакансии."""
-        skills = None
+    def _extract_published_at(self, parsed_date):
+        published_at = None
         try:
-            if isinstance(key_skills, list):
-                skills_list = [skill.get('name', None) for skill in key_skills]
-            skills = ', '.join(skills_list)
+            published_at = parsed_date.strftime("%d.%m.%Y")
         except:
             pass
-        return skills
+        return published_at
+
+    def get_header_text(self):
+        """Возвращает заголовок."""
+        text = f"{self.vacancy_id} ({self.name})"
+        return text
+
+    def get_field(self, field_name, default=None):
+        """Возвращает значение указанного поля вакансии."""
+        try:
+            return getattr(self, field_name, default)
+        except AttributeError:
+            return None
 
     def get_vacancy_data(self):
         """Возвращает данные вакансии в виде словаря."""
         return {'vacancy_id': self.vacancy_id,
                 'name': self.name,
                 'area': self.area,
-                'published_at': self.published_at.strftime("%d.%m.%Y"),
+                'published_at': self.published_at,
                 'salary_from': self.salary_from,
                 'salary_to': self.salary_to,
                 'currency': self.currency,
@@ -368,8 +381,6 @@ class VacancyData:
                 'description': self.description,
                 'url': self.url
                 }
-
-
 
 def get_hh_dictionaries(key):
     url = 'https://api.hh.ru/dictionaries'
@@ -525,16 +536,27 @@ def load_from_csv(filter=''):
 
 def select_from_dataframe(object, dataframe):
     """Выбор из DataFrame."""
-    item = None
     if dataframe is None or dataframe.empty:
-        print(f"Нет доступных {object.get_class_name()} для выбора.")
-        return item
+        print(f"Нет доступных данных для выбора.")
+        return None
 
-    options = [f"{idx+1}: {row[1]} ({row[0]})" for idx, row in dataframe.iterrows()]
-    idx = pick(options, f"Выберите {object.get_class_name()}:", indicator='>')[1]
-    item = object
-    item.inject_data(dataframe.iloc[idx])
-    return item
+    options = ['(Выбрать все)']
+    options.extend([f"{idx+1}: {dataframe.iloc[idx]['name']}" for idx in range(len(dataframe))])
+    idx = pick(options, f"Выберите данные:", indicator='>')[1]
+
+    if idx == 0:
+        items = []
+        for i in range(len(dataframe)):
+            if isinstance(object, ResumeData):
+                item = ResumeData()
+            elif isinstance(object, VacancyData):
+                item = VacancyData()
+            item.inject_data(dataframe.iloc[i])
+            items.append(item)
+        return items
+    else:
+        object.inject_data(dataframe.iloc[idx-1])
+        return object
 
 def get_available_regions():
     """Получает список доступных городов для поиска."""
@@ -611,6 +633,7 @@ def download_resumes_from_hh(specific_links_resumes = []):
     data_resumes = None
     resumes_data_table = []
     resumes_objects = []
+    resumes_url_list = []
 
     if not specific_links_resumes:
         print('Получаем список доступных регионов...')
@@ -704,8 +727,8 @@ def hh_menu():
             data_resumes = download_resumes_from_hh()[0]
 
         elif action == 'Скачать резюме по ссылке':
-            resume_data = download_resumes_from_hh(specific_links_resumes)[0]
-            if resume_data is not None:
+            data_resumes = download_resumes_from_hh(specific_links_resumes)[0]
+            if data_resumes is not None:
                 print("Резюме успешно обработано!")
                 preview_dataframe(data_resumes)
             input("Нажмите любую клавишу для продолжения...")
