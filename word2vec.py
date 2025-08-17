@@ -54,18 +54,18 @@ class LoadCacheSentences:
                 yield line.strip().split()
 
 
-
 def download_data(download_link, filename, download_method=0):
     dest_path = os.path.join('./data/downloads/', filename)
     response_file_size = 0
     local_file_size = 0
 
+    response = requests.get(download_link, stream=True)
+
     if  os.path.exists(dest_path):
         local_file_size = os.path.getsize(dest_path)
-        response = requests.get(download_link, stream=True)
         response_file_size = int(response.headers.get('content-length', 0))
 
-    if response_file_size == local_file_size:
+    if response_file_size == local_file_size and response_file_size > 0 and local_file_size > 0:
         pass
     else:
         if download_method == 0:
@@ -75,7 +75,6 @@ def download_data(download_link, filename, download_method=0):
                 for data in response.iter_content(chunk_size=1024):
                     file.write(data)
                     bar.update(len(data))
-
 
 
 def extract_wiki_articles(file_path, min_articles_length=10, max_articles=None):
@@ -237,6 +236,7 @@ def train_model():
             print(f'\nProcessing file {i+1} of {files_limit}: {os.path.basename(file_path)}')
             
             if user_choise_save_sentences_file == 0:
+                os.makedirs(os.path.dirname(wiki_clean_cache_data_path), exist_ok=True)
                 with open(wiki_clean_cache_data_path, 'a', encoding='utf-8') as wiki_clean_cache_data_file:
                     for article in extract_wiki_articles(file_path, min_articles_length=10, max_articles=max_articles):
                         wiki_clean_cache_data_file.write(' '.join(article) + '\n')
@@ -321,48 +321,42 @@ def word2vec_menu():
 
     while action != 'Выход':
         if model is not None:
-            select_mode = ['Обучить модель', 'Тестировать модель', 'Показать данные', 'Выход']
+            select_mode = ['Обучить модель', 'Тестировать модель', 'Выход']
         else: 
-            select_mode = ['Обучить модель', 'Загрузить модель', 'Показать данные', 'Выход']
+            select_mode = ['Обучить модель', 'Загрузить модель', 'Выход']
 
         if action == '':
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
 
         if action == 'Обучить модель':
             model = train_model()
-            continue
-        elif action == 'Показать данные':
-            pass
-            input("Нажмите любую клавишу для продолжения...")
+            action = ''
         elif action == 'Загрузить модель':
             try:
                 print("Загрузка модели...")
                 model = load_model()
             except FileNotFoundError as err:
                 print(err)
+            action = ''
         elif action == 'Тестировать модель':
             if model is not None:
                 user_input = input("Введите слово, чтобы найти похожие слова (или введите '/exit' для выхода): ").lower()
                 if user_input == '/exit':
-                    continue
+                    action = ''
                 else:
                     try:
                         similar_words = model.wv.most_similar(user_input, topn=5)
                         print(f"Most similar words to '{user_input}':")
                         for word, similarity in similar_words:
                             print(f"    ~{word}: {similarity:.4f}")
-                        continue
-
                     except KeyError:
                         print(f"'{user_input}' not found in the vocabulary.")
-                        continue
             else:
                 print("No model loaded. Please load a model first.")
+                action = ''
         else:
             print("Выход из модуля...")
             break
-        action = ''
-        continue
 
 
 if __name__ == "__main__":
