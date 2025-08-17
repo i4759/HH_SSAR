@@ -126,3 +126,5 @@ models/
 temp/
 cache/
 logs/
+word2vec_epochs/
+word2vec_epochs/*
