@@ -352,6 +352,17 @@ class VacancyData:
             pass
         return published_at
 
+    def _extract_skills(self, key_skills):
+        """Извлекает ключевые навыки из данных вакансии."""
+        skills = None
+        try:
+            if isinstance(key_skills, list):
+                skills_list = [skill.get('name', None) for skill in key_skills]
+            skills = ', '.join(skills_list)
+        except:
+            pass
+        return skills
+
     def get_header_text(self):
         """Возвращает заголовок."""
         text = f"{self.vacancy_id} ({self.name})"
@@ -574,7 +585,7 @@ def get_available_regions():
         
         for area in russian_areas:
             if area['name'] in filter_city:
-                available_regions.append((area['id'], area['name']))
+                available_regions.extend([f"{area['id']}: {area['name']}"])
     return available_regions
 
 def download_vacancies_from_hh():
@@ -589,13 +600,15 @@ def download_vacancies_from_hh():
         print('Нет доступных регионов для поиска.')
         return
 
-    region_selection.append(('Exit', 'Выход из меню'))
+    region_selection.extend(['Exit'])
     print('Список доступных регионов:')
     action = pick(region_selection, 'Пожалуйста, выберите регион (по умолчанию 1):', indicator='>')[1]
 
-    if region_selection[action][0] != 'Exit':
-        region_id = region_selection[action][0]
-        print(f'Выбран регион: {region_selection[action][1]} (ID: {region_id})')
+    if region_selection[action] != 'Exit':
+        region_text = region_selection[action]
+        region_id = region_text.split(':')[0]
+        region_name = region_text.split(':')[1].strip()
+        print(f'Выбран регион: {region_name} (ID: {region_id})')
 
         user_text = input('Введите текст для поиска вакансий (по умолчанию "Data Science"): ')
         vacancy_url_list = get_vacancy_links_api(region_id, user_text)
@@ -621,7 +634,7 @@ def download_vacancies_from_hh():
 
     if data_vacancy is not None:
         user_choise = input('Сохранить данные в файл? (y/n): ')
-        if user_choise.lower() == 'y':
+        if user_choise.lower() == 'y' or user_choise.lower() == 'yes':
             save_to_csv(data_vacancy, 'vacancies', user_text, region_id)
     return data_vacancy, vacancies_objects
 
@@ -673,7 +686,7 @@ def download_resumes_from_hh(specific_links_resumes = []):
 
     if data_resumes is not None:
         user_choise = input('Сохранить данные в файл? (y/n): ')
-        if user_choise.lower() == 'y':
+        if user_choise.lower() == 'y' or user_choise.lower() == 'yes':
             save_to_csv(data_resumes, 'resumes', user_text, region_id)
     return data_resumes, resumes_objects
 
@@ -703,7 +716,7 @@ def hh_menu():
             'Скачать вакансии с HH.ru',
             'Загрузить вакансии из файла',
             'Скачать резюме с HH.ru',
-            'Скачать резюме по ссылке',
+            'Скачать резюме по ссылкам',
             'Загрузить резюме из файла',
             'Выход'
         ]
@@ -711,38 +724,45 @@ def hh_menu():
         if action == '':
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
 
-        if action == 'Скачать вакансии с HH.ru':
-            data_vacancy = download_vacancies_from_hh()[0]
-            if data_vacancy is not None:
-                print("Данные вакансий успешно загружены!")
-                preview_dataframe(data_vacancy)
+        try:
+            if action == 'Скачать вакансии с HH.ru':
+                data_vacancy = download_vacancies_from_hh()[0]
+                if data_vacancy is not None:
+                    print("Данные вакансий успешно загружены!")
+                    preview_dataframe(data_vacancy)
+                input("Нажмите любую клавишу для продолжения...")
+            elif action == 'Загрузить вакансии из файла':
+                data_vacancy = load_from_csv('vacancies')
+                if data_vacancy is not None:
+                    print("Данные вакансий успешно загружены!")
+                    preview_dataframe(data_vacancy)
+                input("Нажмите любую клавишу для продолжения...")
+            elif action == 'Скачать резюме с HH.ru':
+                data_resumes = download_resumes_from_hh()[0]
+            elif action == 'Скачать резюме по ссылкам':
+                url_user_input = input('Введите ссылку на резюме (или несколько через запятую): ')
+                if url_user_input.strip():
+                    specific_links_resumes.extend([url.strip() for url in url_user_input.split(',')])
+                data_resumes = download_resumes_from_hh(specific_links_resumes)[0]
+                if data_resumes is not None:
+                    print("Резюме успешно обработано!")
+                    preview_dataframe(data_resumes)
+                input("Нажмите любую клавишу для продолжения...")
+            elif action == 'Загрузить резюме из файла':
+                data_resumes = load_from_csv('resumes')
+                if data_resumes is not None:
+                    print("Данные резюме успешно загружены!")
+                    preview_dataframe(data_resumes)
+                input("Нажмите любую клавишу для продолжения...")
+            else:
+                print("Выход из модуля...")
+                break
+            action = ''
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
             input("Нажмите любую клавишу для продолжения...")
-        elif action == 'Загрузить вакансии из файла':
-            data_vacancy = load_from_csv('vacancies')
-            if data_vacancy is not None:
-                print("Данные вакансий успешно загружены!")
-                preview_dataframe(data_vacancy)
-            input("Нажмите любую клавишу для продолжения...")
-        elif action == 'Скачать резюме с HH.ru':
-            data_resumes = download_resumes_from_hh()[0]
+            action = ''
 
-        elif action == 'Скачать резюме по ссылке':
-            data_resumes = download_resumes_from_hh(specific_links_resumes)[0]
-            if data_resumes is not None:
-                print("Резюме успешно обработано!")
-                preview_dataframe(data_resumes)
-            input("Нажмите любую клавишу для продолжения...")
-        elif action == 'Загрузить резюме из файла':
-            data_resumes = load_from_csv('resumes')
-            if data_resumes is not None:
-                print("Данные резюме успешно загружены!")
-                preview_dataframe(data_resumes)
-            input("Нажмите любую клавишу для продолжения...")
-        else:
-            print("Выход из модуля...")
-            break
-        action = ''
-        continue
 
 
 if __name__ == "__main__":
