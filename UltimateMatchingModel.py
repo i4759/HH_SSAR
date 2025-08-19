@@ -529,15 +529,20 @@ def ultimate_matching_menu():
 
         if action == '':
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
-
-        if action == 'Выполнить сопоставление':
-            matches = run_ultimate_matching()
-            display_matches(matches)
+            
+        try:
+            if action == 'Выполнить сопоставление':
+                matches = run_ultimate_matching()
+                display_matches(matches)
+                input("Нажмите любую клавишу для продолжения...")
+                action = ''
+            else:
+                print("Выход из модуля...")
+                break
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
             input("Нажмите любую клавишу для продолжения...")
             action = ''
-        else:
-            print("Выход из модуля...")
-            break
 
 
 if __name__ == "__main__":
