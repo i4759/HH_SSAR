@@ -510,9 +510,7 @@ def display_matches(matches):
                 print(f"      📊 Сходство: {similarity_percent:.1f}% ({vacancy_match['confidence_level']:.1f}) ({level})")
                 print(f"      🎯 Опыт: {vacancy_match['experience']}")
                 print(f"      🔗 Ссылка: {vacancy_match['url']}")
-                print(f"      📝 Компоненты совпадения:")
-                for component, score in vacancy_match['component_scores'].items():
-                    print(f"         - {component}: {score:.1f}")
+                print(f"      📝 Компоненты: {', '.join([f'{comp}: {score:.1f}' for comp, score in vacancy_match['component_scores'].items()])}")
 
         print(f"\n{'='*80}")
         print("Совет: Рассматривайте вакансии с сходством выше 60% как приоритетные")

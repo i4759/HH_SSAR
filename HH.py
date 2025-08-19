@@ -700,10 +700,6 @@ def preview_dataframe(df):
     print(f"Размер DataFrame: {df.shape[0]} строк, {df.shape[1]} столбцов")    
     print(f"\n--- Первые 5 записей ---")
     print(df.head())    
-    print(f"\n--- Пропущенные значения ---")
-    missing_values = df.isnull().sum()
-    print(missing_values[missing_values > 0])
-
 
 def hh_menu():
     action = ''
