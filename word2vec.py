@@ -313,8 +313,6 @@ def load_model():
 
 def word2vec_menu():
     init(autoreset=True)
-    print(Style.BRIGHT + Fore.YELLOW + "Welcome to the Word2Vec training and testing menu!")
-    print("You can train a new model, load an existing model, or test the model with your own words.")
     
     action = ''
     model = None
@@ -328,35 +326,40 @@ def word2vec_menu():
         if action == '':
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
 
-        if action == 'Обучить модель':
-            model = train_model()
-            action = ''
-        elif action == 'Загрузить модель':
-            try:
-                print("Загрузка модели...")
-                model = load_model()
-            except FileNotFoundError as err:
-                print(err)
-            action = ''
-        elif action == 'Тестировать модель':
-            if model is not None:
-                user_input = input("Введите слово, чтобы найти похожие слова (или введите '/exit' для выхода): ").lower()
-                if user_input == '/exit':
-                    action = ''
-                else:
-                    try:
-                        similar_words = model.wv.most_similar(user_input, topn=5)
-                        print(f"Most similar words to '{user_input}':")
-                        for word, similarity in similar_words:
-                            print(f"    ~{word}: {similarity:.4f}")
-                    except KeyError:
-                        print(f"'{user_input}' not found in the vocabulary.")
-            else:
-                print("No model loaded. Please load a model first.")
+        try:
+            if action == 'Обучить модель':
+                model = train_model()
                 action = ''
-        else:
-            print("Выход из модуля...")
-            break
+            elif action == 'Загрузить модель':
+                try:
+                    print("Загрузка модели...")
+                    model = load_model()
+                except FileNotFoundError as err:
+                    print(err)
+                action = ''
+            elif action == 'Тестировать модель':
+                if model is not None:
+                    user_input = input("Введите слово, чтобы найти похожие слова (или введите '/exit' для выхода): ").lower()
+                    if user_input == '/exit':
+                        action = ''
+                    else:
+                        try:
+                            similar_words = model.wv.most_similar(user_input, topn=5)
+                            print(f"Наиболее похожие слова к '{user_input}':")
+                            for word, similarity in similar_words:
+                                print(f"    ~{word}: {similarity:.4f}")
+                        except KeyError:
+                            print(f"'{user_input}' не найдено в словаре.")
+                else:
+                    print("Модель не загружена. Пожалуйста, сначала загрузите модель.")
+                    action = ''
+            else:
+                print("Выход из модуля...")
+                break
+        except Exception as e:
+            print(f"Произошла ошибка: {e}")
+            input("Нажмите любую клавишу для продолжения...")
+            action = ''
 
 
 if __name__ == "__main__":
