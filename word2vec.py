@@ -8,6 +8,8 @@ import requests
 import fake_useragent
 import pymorphy2
 import unicodedata
+import zipfile
+
 
 from pick import pick
 from gensim.models import Word2Vec
@@ -18,6 +20,10 @@ from tqdm import tqdm
 from bs4 import BeautifulSoup
 from itertools import islice
 from colorama import init, Fore, Style
+from dotenv import load_dotenv
+
+import time
+from urllib3.exceptions import IncompleteRead
 
 TOKENIZER = WordPunctTokenizer()
 MORPH = pymorphy2.MorphAnalyzer()
@@ -52,6 +58,301 @@ class LoadCacheSentences:
         with open(self.path, 'r', encoding='utf-8') as file:
             for line in file:
                 yield line.strip().split()
+
+
+def get_server_config():
+    """Получение конфигурации сервера из переменных окружения"""
+    load_dotenv()
+    return {
+        'ip': os.getenv('SERVER_IP', 'localhost'),
+        'ptr': os.getenv('PTR_NAME', 'unknown'),
+        'port': int(os.getenv('SERVER_PORT', 8080)),
+        'protocol': os.getenv('SERVER_PROTOCOL', 'http'),
+        'api_endpoint': os.getenv('API_ENDPOINT', '/api/models')
+    }
+
+def download_from_server():
+    server_configs = get_server_config()
+    
+    servers_to_try = [
+        f"{server_configs['protocol']}://{server_configs['ip']}:{server_configs['port']}"
+    ]
+    
+    for base_url in servers_to_try:
+        try:
+            response = requests.get(f"{base_url}{server_configs['api_endpoint']}", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('success') and data.get('models'):
+                    return select_model_on_server(base_url, data['models'])
+                    
+        except requests.exceptions.RequestException:
+            print(f"Сервер недоступен: {base_url}")
+
+    return None
+
+def select_model_on_server(base_url, models):
+    if not models:
+        print("Модели не найдены на сервере")
+        return None
+    
+    print(f"\nНайдено моделей на сервере: {len(models)}")
+    # Показываем список моделей
+    model_options = []
+    for model in models:
+        display_name = f"{model['name']} ({model['size_mb']} MB)"
+        model_options.append(display_name)
+    
+    model_options.append("Отмена")
+    
+    selected_idx = pick(model_options, "Выберите модель для скачивания:", indicator='>')[1]
+    
+    if selected_idx == len(model_options) - 1:  # Отмена
+        return None
+    
+    selected_model = models[selected_idx]
+
+    if not selected_model:
+        return None
+
+    download_url = f"{base_url}{selected_model['download_url']}"
+    return download_and_extract(download_url, selected_model['name'])
+
+
+def download_and_extract(url, filename, max_retries=5, chunk_size=1024*1024):
+    """Надежное скачивание с улучшенной обработкой ошибок"""
+    try:
+        if not os.path.exists('./models'):
+            os.makedirs('./models')
+        
+        local_path = f"./models/{filename}"
+        temp_path = f"{local_path}.tmp"  # Временный файл
+        
+        print(f"Скачивание {filename}...")
+        
+        # Получаем размер файла
+        try:
+            head_response = requests.head(url, timeout=30)
+            if head_response.status_code == 200:
+                total_size = int(head_response.headers.get('content-length', 0))
+            else:
+                total_size = 0
+        except Exception as e:
+            total_size = 0
+        
+        # Проверяем частично скачанный файл
+        initial_pos = 0
+        if os.path.exists(temp_path):
+            initial_pos = os.path.getsize(temp_path)
+        
+        for attempt in range(max_retries):
+            try:
+                ua = fake_useragent.UserAgent()
+                headers = {
+                    'User-Agent': ua.random,
+                    'Accept': '*/*',
+                    'Accept-Encoding': 'identity',  # Отключаем сжатие
+                    'Connection': 'keep-alive'
+                }
+                
+                # Докачка с позиции
+                if initial_pos > 0:
+                    headers['Range'] = f'bytes={initial_pos}-'
+                
+                # Делаем запрос с увеличенным таймаутом
+                session = requests.Session()
+                session.mount('http://', requests.adapters.HTTPAdapter(max_retries=3))
+                
+                response = session.get(url, headers=headers, stream=True, timeout=(30, 300))
+                
+                if response.status_code not in [200, 206]:
+                    print(f"HTTP ошибка: {response.status_code}")
+                    if response.status_code == 416:  # Range not satisfiable
+                        print("Файл уже скачан полностью")
+                        if os.path.exists(temp_path):
+                            os.rename(temp_path, local_path)
+                        return process_downloaded_file(local_path, filename)
+                    continue
+                
+                # Обновляем общий размер если получили
+                if response.status_code == 206:
+                    content_range = response.headers.get('content-range', '')
+                    if content_range:
+                        total_size = int(content_range.split('/')[-1])
+                elif response.status_code == 200 and initial_pos > 0:
+                    # Сервер не поддерживает Range, начинаем сначала
+                    initial_pos = 0
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                
+                file_mode = 'ab' if initial_pos > 0 else 'wb'
+                
+                # Скачивание
+                with open(temp_path, file_mode) as file:
+                    with tqdm(
+                        total=total_size,
+                        initial=initial_pos,
+                        desc=f"{filename}",
+                        unit='B',
+                        unit_scale=True,
+                        unit_divisor=1024,
+                        miniters=1,  # Обновляем чаще
+                        maxinterval=1.0  # Максимальный интервал обновления
+                    ) as pbar:
+                        
+                        downloaded = initial_pos
+                        consecutive_errors = 0
+                        last_downloaded = downloaded
+                        
+                        for chunk in response.iter_content(chunk_size=chunk_size):
+                            if chunk:
+                                try:
+                                    file.write(chunk)
+                                    downloaded += len(chunk)
+                                    pbar.update(len(chunk))
+                                    consecutive_errors = 0
+                                    
+                                    # Принудительно сбрасываем буфер каждые 10MB
+                                    if downloaded - last_downloaded > 10 * 1024 * 1024:
+                                        file.flush()
+                                        os.fsync(file.fileno())
+                                        last_downloaded = downloaded
+                                        
+                                except IOError as io_error:
+                                    consecutive_errors += 1
+                                    print(f"Ошибка записи: {io_error}")
+                                    if consecutive_errors > 5:
+                                        raise io_error
+                                    time.sleep(0.1)
+                            else:
+                                # Пустой chunk может означать конец или временную проблему
+                                time.sleep(0.01)
+                
+                # Проверяем результат
+                actual_size = os.path.getsize(temp_path)
+                
+                if total_size > 0 and actual_size >= total_size:
+                    print(f"Файл успешно скачан: {actual_size / (1024*1024):.1f} MB")
+                    # Перемещаем из временного в финальный
+                    os.rename(temp_path, local_path)
+                    return process_downloaded_file(local_path, filename)
+                    
+                elif total_size == 0:
+                    print(f"Файл скачан")
+                    os.rename(temp_path, local_path)
+                    return process_downloaded_file(local_path, filename)
+                    
+                else:
+                    print(f"Файл неполный: {actual_size}/{total_size} байт ({(actual_size/total_size*100):.1f}%)")
+                    initial_pos = actual_size
+                    if attempt < max_retries - 1:
+                        print(f"Попытка {attempt + 2}/{max_retries} через 3 секунды...")
+                        time.sleep(3)
+                        continue
+                        
+            except (requests.exceptions.RequestException, 
+                    requests.exceptions.ChunkedEncodingError,
+                    requests.exceptions.ConnectionError,
+                    IncompleteRead,
+                    IOError) as e:
+                print(f"Ошибка соединения (попытка {attempt + 1}/{max_retries}): {type(e).__name__}: {e}")
+                
+                if attempt < max_retries - 1:
+                    wait_time = min((attempt + 1) * 5, 30)  # Максимум 30 сек
+                    print(f"Пауза {wait_time} секунд...")
+                    time.sleep(wait_time)
+                    
+                    # Проверяем размер частично скачанного файла
+                    if os.path.exists(temp_path):
+                        initial_pos = os.path.getsize(temp_path)
+                        print(f"Продолжаем с позиции: {initial_pos / (1024*1024):.1f} MB")
+                else:
+                    print(f"Попытки исчерпаны")
+
+        # Очистка при неудаче
+        if os.path.exists(temp_path):
+            os.remove(temp_path)            
+        return None
+        
+    except Exception as e:
+        print(f"Ошибка скачивания: {e}")
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return None
+
+def process_downloaded_file(local_path, filename):
+    """Обработка скачанного файла"""
+    try:
+        if filename.endswith('.zip'):
+            return extract_zip(local_path)
+    except Exception as e:
+        print(f"Ошибка обработки файла: {e}")
+        return None
+
+def extract_zip(zip_path):
+    """Распаковка ZIP"""
+    try:
+        print(f"Распаковка {os.path.basename(zip_path)}...")
+        
+        # Проверяем целостность ZIP файла
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            # Тестируем архив
+            bad_file = zip_ref.testzip()
+            if bad_file:
+                print(f"Поврежденный файл в архиве: {bad_file}")
+                return None
+            
+            file_list = zip_ref.namelist()
+            
+            # Распаковываем все файлы с прогресс-баром
+            extract_dir = './models/'
+            
+            with tqdm(total=len(file_list), desc="Extracting", unit="file") as pbar:
+                for file_info in zip_ref.infolist():
+                    zip_ref.extract(file_info, extract_dir)
+                    pbar.update(1)
+            
+            # Находим файл модели (обычно .model)
+            model_files = [f for f in file_list if f.endswith('.model')]
+            if model_files:
+                extracted_path = os.path.join(extract_dir, model_files[0])
+                
+                # Если файл в подпапке, перемещаем в корень ./models/
+                if '/' in model_files[0]:
+                    final_path = os.path.join(extract_dir, os.path.basename(model_files[0]))
+                    if os.path.exists(extracted_path):
+                        os.rename(extracted_path, final_path)
+                        
+                        # Удаляем пустые папки
+                        try:
+                            parent_dir = os.path.dirname(extracted_path)
+                            if parent_dir != extract_dir and os.path.exists(parent_dir):
+                                os.rmdir(parent_dir)
+                        except:
+                            pass
+                            
+                        extracted_path = final_path
+        
+        if os.path.exists(extracted_path):
+            user_choise = input('Удалить ZIP архив? (y/n): ')
+            if user_choise.lower() == 'y' or user_choise.lower() == 'yes':
+                os.remove(zip_path)
+                print(f"ZIP файл удален: {zip_path}")
+
+            return load_model(extracted_path)
+        else:
+            print(f"Модель не найдена после распаковки: {extracted_path}")
+            return None
+        
+    except zipfile.BadZipFile:
+        print(f"Поврежденный ZIP файл: {zip_path}")
+        # Удаляем поврежденный файл
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        return None
+    except Exception as e:
+        print(f"Ошибка распаковки: {e}")
+        return None
 
 
 def download_data(download_link, filename, download_method=0):
@@ -301,15 +602,31 @@ def train_model():
 
 def load_model():
     model_files = glob.glob('./models/*-*.model')
-    if not model_files:
-        return print("No Word2Vec models found in. Please train the model first.")
-    else:
-        options = [os.path.basename(f) for f in model_files]
-        idx = pick(options, "Select a model to load:", indicator='>')[1]
-        model_path = model_files[idx]
-        model = Word2Vec.load(model_path)
-        print(f"Model [{model_path}] loaded.")
-        return model
+    try:
+        if not model_files:
+            return print("Нет доступных моделей для загрузки. Пожалуйста, обучите модель или скачайте её с сервера.")
+        else:
+            options = [os.path.basename(f) for f in model_files]
+            idx = pick(options, "Выберите модель для загрузки:", indicator='>')[1]
+            model_path = model_files[idx]
+            model = Word2Vec.load(model_path)
+
+            file_size = os.path.getsize(model_path) / (1024*1024)        
+            vocab_size = len(model.wv.key_to_index)
+            vector_size = model.wv.vector_size
+
+            print(f"Model [{model_path}] loaded.")
+            print(f"   - Размер словаря: {vocab_size:,} слов")
+            print(f"   - Размер векторов: {vector_size}")
+            print(f"   - Размер файла: {file_size:.1f} MB")
+            print(f"   - Путь: {model_path}")
+
+            return model
+    except Exception as e:
+        print(f"Ошибка загрузки модели: {e}")
+        print(f"Возможно, файл поврежден или это не файл модели Word2Vec")
+        return None
+
 
 def word2vec_menu():
     init(autoreset=True)
@@ -319,9 +636,9 @@ def word2vec_menu():
 
     while action != 'Выход':
         if model is not None:
-            select_mode = ['Обучить модель', 'Тестировать модель', 'Выход']
+            select_mode = ['Обучить модель', 'Тестировать модель', 'Скачать модель', 'Выход']
         else: 
-            select_mode = ['Обучить модель', 'Загрузить модель', 'Выход']
+            select_mode = ['Обучить модель', 'Загрузить модель', 'Скачать модель', 'Выход']
 
         if action == '':
             action = pick(select_mode, 'Пожалуйста, выберите опцию:', indicator='>')[0]
@@ -336,6 +653,7 @@ def word2vec_menu():
                     model = load_model()
                 except FileNotFoundError as err:
                     print(err)
+                input("Нажмите любую клавишу для продолжения...")
                 action = ''
             elif action == 'Тестировать модель':
                 if model is not None:
@@ -353,6 +671,9 @@ def word2vec_menu():
                 else:
                     print("Модель не загружена. Пожалуйста, сначала загрузите модель.")
                     action = ''
+            elif action == 'Скачать модель':
+                model = download_from_server()
+                action = ''
             else:
                 print("Выход из модуля...")
                 break
