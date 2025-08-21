@@ -110,11 +110,10 @@ def main_menu():
 
 if __name__ == "__main__":
     try:
+        ensure_env_file()
         print_banner()
-
         input("Нажмите Enter для продолжения...")
         main_menu()
-
     except KeyboardInterrupt:
         print(f"\nПрограмма завершена пользователем")
     except Exception as e:
