@@ -60,6 +60,8 @@ if exist "requirements.txt" (
     %PYTHON_CMD% -m pip install gensim==4.3.2
 )
 
+REM Очистка консоли перед запуском
+cls
 REM Запуск основного скрипта
 if exist "main.py" (
     echo Starting main.py...
