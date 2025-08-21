@@ -339,7 +339,7 @@ def extract_zip(zip_path):
                 os.remove(zip_path)
                 print(f"ZIP файл удален: {zip_path}")
 
-            return load_model(extracted_path)
+            return load_model()
         else:
             print(f"Модель не найдена после распаковки: {extracted_path}")
             return None
